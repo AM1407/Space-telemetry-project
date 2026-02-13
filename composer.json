@@ -1,0 +1,7 @@
+{
+    "name": "am1407/iss-upa-telemetry",
+    "description": "ISS Urine Processing Assembly telemetry dashboard — PHP API backend",
+    "require": {
+        "guzzlehttp/guzzle": "^7.0"
+    }
+}

@@ -21,6 +21,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 
+    <!-- Leaflet — open-source map library for ISS ground track -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" is:inline></script>
+
     <style>
       /* ───────── RESET & BASE ───────── */
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -365,6 +369,211 @@
       .stat-label { color: var(--c-dim); }
       .stat-value { font-family: var(--font-mono); color: #e2e8f0; font-weight: 500; }
 
+      /* ───────── MISSION INTELLIGENCE SECTION ───────── */
+      .intel-section {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border);
+        border-radius: 8px;
+        padding: 1.5rem 2rem 2rem;
+      }
+
+      .intel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+      }
+
+      .intel-title {
+        font-family: var(--font-mono);
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: var(--c-accent);
+      }
+
+      .intel-subtitle {
+        font-size: .65rem;
+        color: var(--c-dim);
+        margin-top: .2rem;
+      }
+
+      .tech-badges { display: flex; gap: .4rem; }
+
+      .tech-badge {
+        padding: .15rem .55rem;
+        border-radius: 3px;
+        font-family: var(--font-mono);
+        font-size: .5rem;
+        font-weight: 600;
+        letter-spacing: .8px;
+        text-transform: uppercase;
+        border: 1px solid var(--c-border);
+        color: var(--c-dim);
+      }
+      .tech-badge.curl    { border-color: #c084fc; color: #c084fc; background: rgba(192,132,252,.06); }
+      .tech-badge.guzzle  { border-color: #fb923c; color: #fb923c; background: rgba(251,146,60,.06); }
+      .tech-badge.crawler { border-color: #34d399; color: #34d399; background: rgba(52,211,153,.06); }
+
+      .intel-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 1rem;
+      }
+
+      /* ── Map Panel ── */
+      .map-panel {
+        background: var(--c-card);
+        border: 1px solid var(--c-border);
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .65rem 1rem;
+        border-bottom: 1px solid var(--c-border);
+      }
+
+      .panel-title {
+        font-family: var(--font-mono);
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: var(--c-accent2);
+      }
+
+      .panel-meta {
+        font-family: var(--font-mono);
+        font-size: .48rem;
+        color: rgba(122,136,153,.6);
+        letter-spacing: .3px;
+      }
+
+      #iss-map {
+        width: 100%;
+        height: 320px;
+        background: #0d1117;
+      }
+
+      .map-readouts {
+        display: flex;
+        gap: 1.5rem;
+        padding: .6rem 1rem;
+        border-top: 1px solid var(--c-border);
+        font-size: .68rem;
+        color: var(--c-dim);
+      }
+
+      .map-readouts span { display: flex; align-items: center; gap: .3rem; }
+      .map-readouts strong {
+        font-family: var(--font-mono);
+        color: #e2e8f0;
+        font-weight: 500;
+      }
+
+      /* ── Sidebar — crew + news ── */
+      .intel-sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+      .sidebar-panel {
+        background: var(--c-card);
+        border: 1px solid var(--c-border);
+        border-radius: 6px;
+        overflow: hidden;
+        flex: 1;
+      }
+
+      /* Crew */
+      .crew-summary {
+        padding: .5rem 1rem 0;
+        font-size: .72rem;
+        color: var(--c-dim);
+      }
+      .crew-summary strong {
+        font-family: var(--font-mono);
+        color: #e2e8f0;
+      }
+      .crew-total { font-size: .6rem; color: var(--c-dim); }
+
+      .crew-list {
+        list-style: none;
+        padding: .4rem 1rem .6rem;
+        max-height: 160px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--c-border) transparent;
+      }
+
+      .crew-list li {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .3rem 0;
+        border-bottom: 1px solid rgba(45, 58, 77, .3);
+        font-size: .68rem;
+      }
+      .crew-list li:last-child { border-bottom: none; }
+
+      .crew-dot {
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: var(--c-ok);
+        flex-shrink: 0;
+      }
+
+      .crew-name { color: #e2e8f0; }
+      .crew-craft { font-family: var(--font-mono); font-size: .52rem; color: var(--c-dim); }
+
+      .crew-list .placeholder,
+      .news-list .placeholder {
+        color: var(--c-dim);
+        font-size: .65rem;
+        padding: .5rem 0;
+      }
+
+      /* News */
+      .news-list {
+        list-style: none;
+        padding: .4rem 1rem .6rem;
+        max-height: 190px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--c-border) transparent;
+      }
+
+      .news-list li {
+        padding: .45rem 0;
+        border-bottom: 1px solid rgba(45, 58, 77, .3);
+      }
+      .news-list li:last-child { border-bottom: none; }
+
+      .news-title {
+        font-size: .68rem;
+        color: var(--c-accent2);
+        text-decoration: none;
+        line-height: 1.35;
+        display: block;
+      }
+      .news-title:hover { color: var(--c-accent); text-decoration: underline; }
+
+      .news-date {
+        font-family: var(--font-mono);
+        font-size: .48rem;
+        color: var(--c-dim);
+        margin-top: .15rem;
+      }
+
+      .news-excerpt {
+        font-size: .6rem;
+        color: rgba(200,209,219,.5);
+        margin-top: .15rem;
+        line-height: 1.3;
+      }
+
       /* ───────── RESPONSIVE ───────── */
       @media (max-width: 768px) {
         .topbar { flex-direction: column; gap: .5rem; text-align: center; }
@@ -372,6 +581,11 @@
         .panels-row { grid-template-columns: 1fr; }
         .island { padding: 1.25rem 1rem; }
         .tank-grid { grid-template-columns: 1fr; }
+        .intel-grid { grid-template-columns: 1fr; }
+        .intel-section { padding: 1.25rem 1rem; }
+        #iss-map { height: 240px; }
+        .map-readouts { flex-wrap: wrap; gap: .75rem; }
+        .intel-header { flex-direction: column; gap: .5rem; align-items: flex-start; }
       }
     </style>
   </head>
@@ -463,6 +677,70 @@
         </div>
       </div>
 
+      <!-- ═══════ MISSION INTELLIGENCE — map / crew / news ═══════ -->
+      <section class="intel-section">
+        <div class="intel-header">
+          <div>
+            <div class="intel-title">MISSION INTELLIGENCE</div>
+            <div class="intel-subtitle">ISS ground track, crew manifest &amp; NASA news — powered by PHP cURL, Guzzle &amp; web crawler</div>
+          </div>
+          <div class="tech-badges">
+            <span class="tech-badge curl">cURL</span>
+            <span class="tech-badge guzzle">Guzzle</span>
+            <span class="tech-badge crawler">Crawler</span>
+          </div>
+        </div>
+
+        <div class="intel-grid">
+          <!-- ── ISS POSITION MAP ── -->
+          <div class="map-panel">
+            <div class="panel-header">
+              <span class="panel-title">ISS GROUND TRACK</span>
+              <span class="panel-meta" id="map-source">cURL → Open Notify API · updates every 30 s</span>
+            </div>
+            <div id="iss-map"></div>
+            <div class="map-readouts">
+              <span>LAT <strong id="iss-lat">——</strong>°</span>
+              <span>LNG <strong id="iss-lng">——</strong>°</span>
+              <span>ALT <strong id="iss-alt">——</strong> km</span>
+              <span>VEL <strong id="iss-vel">——</strong> km/h</span>
+              <span>UPDATED <strong id="iss-ts">——</strong></span>
+            </div>
+          </div>
+
+          <!-- ── SIDEBAR: crew + news ── -->
+          <div class="intel-sidebar">
+
+            <!-- Crew Manifest -->
+            <div class="sidebar-panel">
+              <div class="panel-header">
+                <span class="panel-title">CREW MANIFEST</span>
+                <span class="panel-meta">Guzzle → Open Notify API</span>
+              </div>
+              <div class="crew-summary">
+                <strong id="crew-iss-count">—</strong> aboard ISS
+                <span class="crew-total">(<strong id="crew-space-count">—</strong> humans in space)</span>
+              </div>
+              <ul id="crew-list" class="crew-list">
+                <li class="placeholder">Loading crew data…</li>
+              </ul>
+            </div>
+
+            <!-- NASA News -->
+            <div class="sidebar-panel">
+              <div class="panel-header">
+                <span class="panel-title">NASA UPDATES</span>
+                <span class="panel-meta">Crawler → NASA Blog RSS</span>
+              </div>
+              <ul id="news-list" class="news-list">
+                <li class="placeholder">Crawling NASA feed…</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <!-- ═══════ CLIENT‑SIDE: LIGHTSTREAMER + PHP API ═══════ -->
@@ -487,10 +765,11 @@
         signal_fields: ["Status.Class", "Status", "TimeStamp"],
       };
 
-      // ── PHP API (optional — for supplementary stats) ─────────────
-      //    If your PHP server isn't running, the dashboard still works
-      //    — you just won't see the stats sidebar populate.
-      const API_URL = "/api/api.php";
+      // ── PHP API BASE — adjust this to your PHP server ────────────
+      //    Dev: PHP runs on localhost:8000 (via php -S localhost:8000)
+      //    Prod: set to "" for same‑origin when everything is on one server
+      const PHP_BASE = "http://localhost:8000";
+      const API_URL  = `${PHP_BASE}/api/api.php`;
 
       // ── DOM HELPERS ──────────────────────────────────────────────
       const $ = (id) => document.getElementById(id);
@@ -751,6 +1030,188 @@
         .catch(() => {
           // defaults already applied, no action needed
         });
+
+      // ══════════════════════════════════════════════════════════════
+      //   MISSION INTELLIGENCE — Map, Crew, News
+      //   These poll the PHP API endpoints which use cURL, Guzzle,
+      //   and a web crawler respectively.
+      // ══════════════════════════════════════════════════════════════
+
+      // ── ISS Position Map (Leaflet + cURL endpoint) ───────────────
+      const issIcon = L.divIcon({
+        className: '',
+        html: `<div style="
+          width:20px; height:20px; border-radius:50%;
+          background:var(--c-accent, #6b9fcc);
+          border: 2px solid #e2e8f0;
+          box-shadow: 0 0 12px rgba(107,159,204,.6), 0 0 24px rgba(107,159,204,.3);
+        "></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+
+      const map = L.map('iss-map', {
+        center: [0, 0],
+        zoom: 2,
+        zoomControl: true,
+        attributionControl: false,
+      });
+
+      // Dark tiles — matches the dashboard theme
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+        subdomains: 'abcd',
+      }).addTo(map);
+
+      // Add subtle attribution
+      L.control.attribution({ prefix: false }).addTo(map);
+
+      const issMarker  = L.marker([0, 0], { icon: issIcon }).addTo(map);
+      const trailCoords = [];
+      const trail = L.polyline(trailCoords, {
+        color: 'rgba(107,159,204,.45)',
+        weight: 2,
+        dashArray: '4 6',
+      }).addTo(map);
+
+      let firstPosition = true;
+
+      async function fetchISSPosition() {
+        try {
+          const res = await fetch(`${PHP_BASE}/api/position.php`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+
+          if (!data.success) throw new Error(data.error || 'Position unavailable');
+
+          const lat = data.latitude;
+          const lng = data.longitude;
+          const alt = data.altitude;
+          const vel = data.velocity;
+
+          // Update readouts
+          $("iss-lat").textContent = lat.toFixed(4);
+          $("iss-lng").textContent = lng.toFixed(4);
+          $("iss-alt").textContent = Math.round(alt).toLocaleString();
+          $("iss-vel").textContent = Math.round(vel).toLocaleString();
+          $("iss-ts").textContent  = utcStamp();
+
+          // Update marker
+          issMarker.setLatLng([lat, lng]);
+
+          // Build trail (handle date-line wrapping by starting new segment)
+          if (trailCoords.length > 0) {
+            const prev = trailCoords[trailCoords.length - 1];
+            if (Math.abs(lng - prev[1]) > 180) {
+              // ISS crossed the date line — start a new polyline segment
+              trailCoords.length = 0;
+            }
+          }
+          trailCoords.push([lat, lng]);
+          if (trailCoords.length > 120) trailCoords.shift();
+          trail.setLatLngs(trailCoords);
+
+          // Centre map on first fetch
+          if (firstPosition) {
+            map.setView([lat, lng], 3);
+            firstPosition = false;
+            addLogEntry(`ISS position acquired via cURL — ${lat.toFixed(2)}°, ${lng.toFixed(2)}°`, "info");
+          }
+
+          // Source info
+          const srcEl = $("map-source");
+          if (srcEl && data.source) {
+            srcEl.textContent = `cURL → ${data.source} · updates every 30 s`;
+          }
+        } catch (e) {
+          addLogEntry(`ISS position fetch failed: ${e.message}`, "warning");
+        }
+      }
+
+      // Poll every 30 seconds
+      fetchISSPosition();
+      setInterval(fetchISSPosition, 30000);
+
+      // ── Crew Manifest (Guzzle endpoint) ──────────────────────────
+      async function fetchCrew() {
+        try {
+          const res = await fetch(`${PHP_BASE}/api/crew.php`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+
+          if (!data.success) throw new Error(data.error || 'Crew data unavailable');
+
+          // Update counts
+          $("crew-iss-count").textContent   = data.iss_crew_count ?? '—';
+          $("crew-space-count").textContent  = data.total_in_space ?? '—';
+
+          // Build crew list
+          const list = $("crew-list");
+          if (list && data.crew) {
+            list.innerHTML = '';
+            data.crew.forEach((person) => {
+              const li = document.createElement('li');
+              li.innerHTML = `
+                <span class="crew-dot"></span>
+                <span class="crew-name">${person.name}</span>
+                <span class="crew-craft">${person.craft}</span>
+              `;
+              list.appendChild(li);
+            });
+            if (data.crew.length === 0) {
+              list.innerHTML = '<li class="placeholder">No ISS crew data available</li>';
+            }
+          }
+
+          addLogEntry(`Crew manifest loaded via Guzzle — ${data.iss_crew_count} aboard ISS`, "info");
+        } catch (e) {
+          const list = $("crew-list");
+          if (list) list.innerHTML = '<li class="placeholder">Crew data unavailable — is PHP running?</li>';
+          addLogEntry(`Crew fetch failed: ${e.message}`, "warning");
+        }
+      }
+
+      // Load once, refresh every 5 minutes
+      fetchCrew();
+      setInterval(fetchCrew, 300000);
+
+      // ── NASA News (Crawler endpoint) ─────────────────────────────
+      async function fetchNews() {
+        try {
+          const res = await fetch(`${PHP_BASE}/api/news.php`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+
+          if (!data.success) throw new Error(data.error || 'News unavailable');
+
+          const list = $("news-list");
+          if (list && data.articles) {
+            list.innerHTML = '';
+            data.articles.forEach((article) => {
+              const li = document.createElement('li');
+              li.innerHTML = `
+                <a class="news-title" href="${article.link}" target="_blank" rel="noopener">${article.title}</a>
+                <div class="news-date">${article.date}</div>
+                ${article.excerpt ? `<div class="news-excerpt">${article.excerpt}</div>` : ''}
+              `;
+              list.appendChild(li);
+            });
+            if (data.articles.length === 0) {
+              list.innerHTML = '<li class="placeholder">No articles found</li>';
+            }
+          }
+
+          addLogEntry(`NASA news crawled — ${data.count} articles from RSS feed`, "info");
+        } catch (e) {
+          const list = $("news-list");
+          if (list) list.innerHTML = '<li class="placeholder">News feed unavailable — is PHP running?</li>';
+          addLogEntry(`News crawl failed: ${e.message}`, "warning");
+        }
+      }
+
+      // Load once, refresh every 5 minutes
+      fetchNews();
+      setInterval(fetchNews, 300000);
     </script>
   </body>
 </html>
