@@ -1,17 +1,744 @@
 ---
-
+/*
+  ── ISS URINE PROCESSING ASSEMBLY (UPA) TELEMETRY DASHBOARD ──
+  Live data streams directly from NASA's Lightstreamer feed (push.lightstreamer.com / ISSLIVE).
+  Configuration and supplementary stats are served by the PHP API.
+  Tank cards are rendered dynamically from the API config — add new telemetry IDs
+  in api.php and they'll appear here automatically.
+*/
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <title>MCC‑H · UPA Telemetry</title>
+
+    <!-- Google Font – clean sans + monospace for readability -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <style>
+      /* ───────── RESET & BASE ───────── */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --c-bg:        #121926;
+        --c-panel:     #1a2332;
+        --c-card:      #1e293b;
+        --c-border:    #2d3a4d;
+        --c-accent:    #6b9fcc;
+        --c-accent2:   #7bafd4;
+        --c-warn:      #d4a148;
+        --c-danger:    #c95555;
+        --c-ok:        #5fa87a;
+        --c-text:      #c8d1db;
+        --c-dim:       #7a8899;
+        --font-sans:   'Inter', -apple-system, sans-serif;
+        --font-mono:   'JetBrains Mono', 'Consolas', monospace;
+      }
+
+      html { font-size: 14.5px; }
+
+      body {
+        font-family: var(--font-sans);
+        background: var(--c-bg);
+        color: var(--c-text);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* ───────── TOP BAR ───────── */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .6rem 1.5rem;
+        border-bottom: 1px solid var(--c-border);
+        background: #151d2b;
+      }
+
+      .topbar-left { display: flex; align-items: center; gap: 1rem; }
+
+      .mission-badge {
+        font-family: var(--font-mono);
+        font-weight: 700;
+        font-size: .95rem;
+        letter-spacing: 1.5px;
+        color: var(--c-accent);
+        text-transform: uppercase;
+      }
+
+      .mission-sub {
+        font-size: .7rem;
+        color: var(--c-dim);
+        letter-spacing: .3px;
+      }
+
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        font-size: .75rem;
+        font-family: var(--font-mono);
+        color: var(--c-dim);
+      }
+
+      .status-dot {
+        display: inline-block;
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--c-ok);
+        margin-right: .3rem;
+        animation: pulse-dot 2.5s ease-in-out infinite;
+      }
+      .status-dot.warn { background: var(--c-warn); }
+      .status-dot.danger { background: var(--c-danger); animation-duration: .8s; }
+
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .35; }
+      }
+
+      #utc-clock { color: var(--c-accent2); }
+
+      /* ───────── SECONDARY NAV BAR ───────── */
+      .subbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .3rem 1.5rem;
+        background: #141b28;
+        border-bottom: 1px solid rgba(45, 58, 77, .6);
+        font-size: .65rem;
+        font-family: var(--font-mono);
+        color: var(--c-dim);
+        letter-spacing: .3px;
+      }
+
+      .subbar span { display: flex; align-items: center; gap: .4rem; }
+
+      /* ───────── MAIN LAYOUT ───────── */
+      .dashboard {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 1rem 1.5rem 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      /* ── Section titles ── */
+      .section-title {
+        font-family: var(--font-mono);
+        font-size: .65rem;
+        font-weight: 600;
+        letter-spacing: 2px;
+        color: var(--c-dim);
+        text-transform: uppercase;
+        padding-bottom: .45rem;
+        border-bottom: 1px solid var(--c-border);
+        margin-bottom: .65rem;
+      }
+
+      /* ───────── THE ISLAND — central panel ───────── */
+      .island {
+        position: relative;
+        background: var(--c-panel);
+        border: 1px solid var(--c-border);
+        border-radius: 8px;
+        padding: 1.5rem 2rem 2rem;
+      }
+
+      .island-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+      }
+
+      .island-title {
+        font-family: var(--font-mono);
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: var(--c-accent);
+      }
+
+      .island-subtitle {
+        font-size: .65rem;
+        color: var(--c-dim);
+        margin-top: .2rem;
+      }
+
+      .island-badge {
+        padding: .2rem .7rem;
+        border-radius: 4px;
+        font-family: var(--font-mono);
+        font-size: .6rem;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border: 1px solid var(--c-border);
+        color: var(--c-dim);
+      }
+      .island-badge.nominal { border-color: var(--c-ok); color: var(--c-ok); background: rgba(95,168,122,.08); }
+      .island-badge.caution { border-color: var(--c-warn); color: var(--c-warn); background: rgba(212,161,72,.08); }
+      .island-badge.alert   { border-color: var(--c-danger); color: var(--c-danger); background: rgba(201,85,85,.08); }
+
+      /* ── Tank Cards Grid ── */
+      .tank-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+
+      .tank-card {
+        position: relative;
+        background: var(--c-card);
+        border: 1px solid var(--c-border);
+        border-radius: 6px;
+        padding: 1.1rem 1.1rem .9rem;
+        transition: border-color .3s;
+      }
+      .tank-card:hover {
+        border-color: var(--c-accent);
+      }
+
+      .tank-label {
+        font-family: var(--font-mono);
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: var(--c-accent2);
+        margin-bottom: .1rem;
+      }
+
+      .tank-fullname {
+        font-size: .6rem;
+        color: var(--c-dim);
+        margin-bottom: .75rem;
+      }
+
+      .tank-ls-id {
+        font-family: var(--font-mono);
+        font-size: .52rem;
+        color: rgba(122,136,153,.5);
+        margin-bottom: .4rem;
+        letter-spacing: .5px;
+      }
+
+      /* ── Gauge Bar ── */
+      .gauge-track {
+        position: relative;
+        height: 8px;
+        background: rgba(45, 58, 77, .6);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: .55rem;
+      }
+
+      .gauge-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width .8s cubic-bezier(.22,1,.36,1), background .5s;
+        background: var(--c-accent);
+        width: 0%;
+      }
+
+      .gauge-fill.warn  { background: var(--c-warn); }
+      .gauge-fill.danger { background: var(--c-danger); animation: bar-pulse 1s ease-in-out infinite alternate; }
+
+      @keyframes bar-pulse {
+        from { opacity: 1; }
+        to   { opacity: .6; }
+      }
+
+      .tank-readout {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+      }
+
+      .tank-value {
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #e2e8f0;
+        line-height: 1;
+      }
+      .tank-value .unit {
+        font-size: .7rem;
+        color: var(--c-dim);
+        margin-left: .1rem;
+      }
+
+      .tank-status {
+        font-family: var(--font-mono);
+        font-size: .55rem;
+        font-weight: 600;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        padding: .15rem .5rem;
+        border-radius: 3px;
+        background: rgba(95,168,122,.1);
+        color: var(--c-ok);
+      }
+      .tank-status.warn   { background: rgba(212,161,72,.1); color: var(--c-warn); }
+      .tank-status.danger { background: rgba(201,85,85,.1);  color: var(--c-danger); }
+
+      /* ── Timestamp row ── */
+      .tank-ts {
+        margin-top: .4rem;
+        font-family: var(--font-mono);
+        font-size: .52rem;
+        color: var(--c-dim);
+        text-align: right;
+      }
+
+      /* ───────── BOTTOM PANELS ROW ───────── */
+      .panels-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      .panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border);
+        border-radius: 6px;
+        padding: 1.1rem;
+      }
+
+      /* ── Event Log ── */
+      .log-list {
+        list-style: none;
+        max-height: 180px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--c-border) transparent;
+      }
+
+      .log-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+        padding: .35rem 0;
+        border-bottom: 1px solid rgba(45, 58, 77, .4);
+        font-size: .68rem;
+        color: var(--c-dim);
+      }
+
+      .log-time {
+        font-family: var(--font-mono);
+        color: var(--c-accent2);
+        white-space: nowrap;
+        min-width: 5.2rem;
+        font-size: .62rem;
+      }
+      .log-tag {
+        font-family: var(--font-mono);
+        padding: .05rem .35rem;
+        border-radius: 2px;
+        font-size: .52rem;
+        font-weight: 600;
+        letter-spacing: .5px;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .log-tag.info    { background: rgba(107,159,204,.1);  color: var(--c-accent); }
+      .log-tag.warning { background: rgba(212,161,72,.1);   color: var(--c-warn); }
+      .log-tag.alert   { background: rgba(201,85,85,.1);    color: var(--c-danger); }
+
+      /* ── Stats Sidebar ── */
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: .45rem 0;
+        border-bottom: 1px solid rgba(45, 58, 77, .4);
+        font-size: .72rem;
+      }
+      .stat-row:last-child { border-bottom: none; }
+      .stat-label { color: var(--c-dim); }
+      .stat-value { font-family: var(--font-mono); color: #e2e8f0; font-weight: 500; }
+
+      /* ───────── RESPONSIVE ───────── */
+      @media (max-width: 768px) {
+        .topbar { flex-direction: column; gap: .5rem; text-align: center; }
+        .topbar-right { justify-content: center; flex-wrap: wrap; }
+        .panels-row { grid-template-columns: 1fr; }
+        .island { padding: 1.25rem 1rem; }
+        .tank-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- ═══════ TOP BAR ═══════ -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div>
+          <div class="mission-badge">MCC‑H  ·  ISS OPS</div>
+          <div class="mission-sub">Urine Processing Assembly — Environmental Control &amp; Life Support</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span><span class="status-dot danger" id="conn-dot"></span> <span id="conn-label">CONNECTING</span></span>
+        <span>|</span>
+        <span id="utc-clock">UTC 00:00:00</span>
+        <span>|</span>
+        <span>SIGNAL: <span id="signal-status" style="color:#64748b;">ACQUIRING</span></span>
+      </div>
+    </header>
+
+    <!-- ═══════ SUB BAR ═══════ -->
+    <div class="subbar">
+      <span>SYS: ECLSS &gt; WRS &gt; UPA</span>
+      <span>FEED: <span id="feed-source">——</span></span>
+      <span>GROUND ELAPSED TIME: <span id="get-clock">000/00:00:00</span></span>
+    </div>
+
+    <!-- ═══════ DASHBOARD ═══════ -->
+    <main class="dashboard">
+
+      <!-- ── THE ISLAND — tank cards are injected here by JS from API config ── -->
+      <section class="island">
+        <div class="island-header">
+          <div>
+            <div class="island-title">UPA TANK TELEMETRY</div>
+            <div class="island-subtitle">Real‑time fluid levels · International Space Station · Lightstreamer ISSLIVE</div>
+          </div>
+          <div class="island-badge nominal" id="system-badge">STANDBY</div>
+        </div>
+
+        <div class="tank-grid" id="tank-grid">
+          <!-- Cards are built dynamically from the PHP config -->
+          <div class="tank-card" style="opacity:.5; display:flex; align-items:center; justify-content:center; min-height:120px;">
+            <span style="color:var(--c-dim); font-size:.72rem;">Loading config from API…</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── BOTTOM PANELS ── -->
+      <div class="panels-row">
+
+        <!-- Event Log -->
+        <div class="panel">
+          <div class="section-title">Event Log</div>
+          <ul class="log-list" id="event-log">
+            <li>
+              <span class="log-time">--:--:--</span>
+              <span class="log-tag info">SYS</span>
+              <span>Awaiting telemetry stream…</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="panel">
+          <div class="section-title">System Summary</div>
+          <div class="stat-row">
+            <span class="stat-label">Total Processed (L)</span>
+            <span class="stat-value" id="stat-total">——</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Distillation Cycles</span>
+            <span class="stat-value" id="stat-cycles">——</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Recovery Rate</span>
+            <span class="stat-value" id="stat-recovery">——</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Crew Complement</span>
+            <span class="stat-value" id="stat-crew">——</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Next Purge Window</span>
+            <span class="stat-value" id="stat-purge">——</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ═══════ CLIENT‑SIDE: LIGHTSTREAMER + PHP API ═══════ -->
+    <script>
+      // @ts-nocheck
+      import { LightstreamerClient, Subscription } from 'lightstreamer-client-web';
+
+      // ── LIGHTSTREAMER CONFIG (embedded — no PHP dependency) ──────
+      //    To add more telemetry items, add entries to this object.
+      //    Key = NASA Lightstreamer item ID, value = card metadata.
+      const LS_CONFIG = {
+        server:  "https://push.lightstreamer.com",
+        adapter: "ISSLIVE",
+        items: {
+          "NODE3000005": { id: "wsta", label: "WSTA", fullName: "Waste Storage Tank Assembly" },
+          // Uncomment / add more when you find their IDs:
+          // "NODE3000002": { id: "edv",  label: "EDV‑U",    fullName: "External Distillation Void" },
+          // "NODE3000003": { id: "rfta", label: "RFTA",      fullName: "Recycle Filter Tank Assembly" },
+        },
+        signal_item: "TIME_000001",
+        fields:        ["Value", "Status", "TimeStamp"],
+        signal_fields: ["Status.Class", "Status", "TimeStamp"],
+      };
+
+      // ── PHP API (optional — for supplementary stats) ─────────────
+      //    If your PHP server isn't running, the dashboard still works
+      //    — you just won't see the stats sidebar populate.
+      const API_URL = "/api/api.php";
+
+      // ── DOM HELPERS ──────────────────────────────────────────────
+      const $ = (id) => document.getElementById(id);
+
+      function utcStamp() {
+        return new Date().toISOString().slice(11, 19);
+      }
+
+      function addLogEntry(msg, tag = "info") {
+        const list = $("event-log");
+        if (!list) return;
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="log-time">${utcStamp()}</span>`
+          + `<span class="log-tag ${tag}">${tag.toUpperCase()}</span>`
+          + `<span>${msg}</span>`;
+        list.prepend(li);
+        while (list.children.length > 80) list.removeChild(list.lastChild);
+      }
+
+      // ── CONNECTION STATUS ────────────────────────────────────────
+      function setConnection(state) {
+        const dot   = $("conn-dot");
+        const label = $("conn-label");
+        if (!dot || !label) return;
+        dot.className   = "status-dot " + (state === "ok" ? "" : state === "warn" ? "warn" : "danger");
+        label.textContent = state === "ok" ? "LIVE" : state === "warn" ? "RECONNECTING" : "OFFLINE";
+      }
+
+      function setSignal(hasSignal) {
+        const el = $("signal-status");
+        if (!el) return;
+        el.textContent = hasSignal ? "LOCKED" : "NO SIGNAL";
+        el.style.color = hasSignal ? "var(--c-ok)" : "var(--c-danger)";
+      }
+
+      // ── GAUGE HELPERS ────────────────────────────────────────────
+      function classify(pct) {
+        if (pct >= 90) return "danger";
+        if (pct >= 75) return "warn";
+        return "";
+      }
+
+      function statusLabel(pct) {
+        if (pct >= 90) return { text: "CRITICAL", cls: "danger" };
+        if (pct >= 75) return { text: "CAUTION",  cls: "warn"   };
+        return { text: "NOMINAL", cls: "" };
+      }
+
+      function updateSystemBadge() {
+        const badge = $("system-badge");
+        if (!badge) return;
+        const fills = document.querySelectorAll(".gauge-fill");
+        let worst = "";
+        fills.forEach((f) => {
+          if (f.classList.contains("danger")) worst = "danger";
+          else if (f.classList.contains("warn") && worst !== "danger") worst = "warn";
+        });
+        if (worst === "danger") {
+          badge.textContent = "ALERT";   badge.className = "island-badge alert";
+        } else if (worst === "warn") {
+          badge.textContent = "CAUTION"; badge.className = "island-badge caution";
+        } else {
+          badge.textContent = "NOMINAL"; badge.className = "island-badge nominal";
+        }
+      }
+
+      // ── BUILD TANK CARDS FROM PHP CONFIG ─────────────────────────
+      function buildCards(items) {
+        const grid = $("tank-grid");
+        if (!grid) return;
+        grid.innerHTML = "";
+
+        for (const [lsItem, meta] of Object.entries(items)) {
+          const card = document.createElement("div");
+          card.className = "tank-card";
+          card.id = `card-${meta.id}`;
+          card.innerHTML = `
+            <div class="tank-label">${meta.label}</div>
+            <div class="tank-fullname">${meta.fullName}</div>
+            <div class="tank-ls-id">TELEM ID: ${lsItem}</div>
+            <div class="gauge-track"><div class="gauge-fill" id="fill-${meta.id}"></div></div>
+            <div class="tank-readout">
+              <div class="tank-value"><span id="val-${meta.id}">——</span><span class="unit">%</span></div>
+              <div class="tank-status" id="status-${meta.id}">STANDBY</div>
+            </div>
+            <div class="tank-ts" id="ts-${meta.id}"></div>
+          `;
+          grid.appendChild(card);
+        }
+      }
+
+      // ── APPLY STATS FROM PHP ─────────────────────────────────────
+      function applyStats(stats) {
+        if (!stats) return;
+        const map = {
+          total: "stat-total", cycles: "stat-cycles", recovery: "stat-recovery",
+          crew: "stat-crew", purge: "stat-purge",
+        };
+        for (const [key, elId] of Object.entries(map)) {
+          const el = $(elId);
+          if (el && stats[key] != null) el.textContent = stats[key];
+        }
+      }
+
+      // ── UTC CLOCK ────────────────────────────────────────────────
+      function tickClock() {
+        const now   = new Date();
+        const utcEl = $("utc-clock");
+        if (utcEl) utcEl.textContent = `UTC ${now.toISOString().slice(11, 19)}`;
+
+        // Ground elapsed time (days since ISS Expedition 1: 2000‑11‑02)
+        const epoch = new Date("2000-11-02T00:00:00Z");
+        const diff  = now.getTime() - epoch.getTime();
+        const days  = Math.floor(diff / 86400000);
+        const hh    = String(now.getUTCHours()).padStart(2, "0");
+        const mm    = String(now.getUTCMinutes()).padStart(2, "0");
+        const ss    = String(now.getUTCSeconds()).padStart(2, "0");
+        const getEl = $("get-clock");
+        if (getEl) getEl.textContent = `${days}/${hh}:${mm}:${ss}`;
+      }
+
+      // ── CONNECT TO LIGHTSTREAMER ─────────────────────────────────
+      function startLightstreamer(cfg) {
+        const lsClient = new LightstreamerClient(cfg.server, cfg.adapter);
+
+        // ── Connection status listener ──
+        lsClient.addListener({
+          onStatusChange: (newStatus) => {
+            addLogEntry(`LS status → ${newStatus}`, "info");
+            if (newStatus.startsWith("CONNECTED")) {
+              setConnection("ok");
+            } else if (newStatus.startsWith("STALLED") || newStatus.startsWith("DISCONNECTED:WILL-RETRY")) {
+              setConnection("warn");
+            } else if (newStatus.startsWith("DISCONNECTED")) {
+              setConnection("danger");
+            }
+          },
+        });
+
+        // ── Build item→cardId lookup ──
+        const itemNames = Object.keys(cfg.items);
+        const itemMeta  = {};        // lsItemName → { id, label, ... }
+        for (const [lsItem, meta] of Object.entries(cfg.items)) {
+          itemMeta[lsItem] = meta;
+        }
+
+        // ── Tank data subscription (MERGE mode, one sub for all items) ──
+        if (itemNames.length > 0) {
+          const tankSub = new Subscription("MERGE", itemNames, cfg.fields || ["Value", "Status", "TimeStamp"]);
+          tankSub.setRequestedSnapshot("yes");
+
+          tankSub.addListener({
+            onItemUpdate: (update) => {
+              const lsItem = update.getItemName();
+              const meta   = itemMeta[lsItem];
+              if (!meta) return;
+
+              const rawValue = update.getValue("Value");
+              const pct      = parseFloat(rawValue) || 0;
+              const cls      = classify(pct);
+              const st       = statusLabel(pct);
+
+              // Value
+              const valEl = $(`val-${meta.id}`);
+              if (valEl) valEl.textContent = pct.toFixed(1);
+
+              // Gauge bar
+              const fillEl = $(`fill-${meta.id}`);
+              if (fillEl) {
+                fillEl.style.width   = `${Math.min(pct, 100)}%`;
+                fillEl.className     = "gauge-fill " + cls;
+              }
+
+              // Status badge
+              const statEl = $(`status-${meta.id}`);
+              if (statEl) {
+                statEl.textContent = st.text;
+                statEl.className   = "tank-status " + st.cls;
+              }
+
+              // Timestamp
+              const tsRaw = update.getValue("TimeStamp");
+              const tsEl  = $(`ts-${meta.id}`);
+              if (tsEl && tsRaw) {
+                const d = new Date(parseFloat(tsRaw) * 1000);
+                tsEl.textContent = isNaN(d.getTime()) ? tsRaw : `Last update: ${d.toISOString().slice(11, 19)} UTC`;
+              }
+
+              // Log significant events
+              if (pct >= 90) {
+                addLogEntry(`${meta.label} at ${pct.toFixed(1)}% — CRITICAL`, "alert");
+              } else if (pct >= 75) {
+                addLogEntry(`${meta.label} at ${pct.toFixed(1)}% — CAUTION`, "warning");
+              }
+
+              updateSystemBadge();
+            },
+          });
+
+          lsClient.subscribe(tankSub);
+          addLogEntry(`Subscribed to ${itemNames.length} telemetry item(s): ${itemNames.join(", ")}`, "info");
+        }
+
+        // ── Signal‑quality subscription (TIME_000001) ──
+        if (cfg.signal_item) {
+          const sigSub = new Subscription("MERGE", [cfg.signal_item], cfg.signal_fields || ["Status.Class", "Status"]);
+          sigSub.addListener({
+            onItemUpdate: (update) => {
+              const statusClass = update.getValue("Status.Class");
+              const hasSignal   = statusClass === "24";
+              setSignal(hasSignal);
+            },
+          });
+          lsClient.subscribe(sigSub);
+        }
+
+        // ── Connect! ──
+        lsClient.connect();
+        addLogEntry("Lightstreamer client connecting…", "info");
+      }
+
+      // ══════════════════════════════════════════════════════════════
+      //   BOOT SEQUENCE
+      // ══════════════════════════════════════════════════════════════
+      tickClock();
+      setInterval(tickClock, 1000);
+
+      // 1. Build cards + start Lightstreamer immediately (no PHP needed)
+      const feedEl = $("feed-source");
+      if (feedEl) feedEl.textContent = `${LS_CONFIG.server} / ${LS_CONFIG.adapter}`;
+
+      buildCards(LS_CONFIG.items);
+      startLightstreamer(LS_CONFIG);
+      addLogEntry("Dashboard initialised — live telemetry stream active", "info");
+
+      // 2. Optionally fetch supplementary stats from PHP (fails gracefully)
+      fetch(API_URL)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          applyStats(data.stats);
+          addLogEntry("PHP stats loaded", "info");
+        })
+        .catch(() => {
+          addLogEntry("PHP API unavailable — stats will show when server is running", "warning");
+        });
+    </script>
+  </body>
 </html>

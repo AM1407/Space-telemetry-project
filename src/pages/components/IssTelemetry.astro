@@ -1,0 +1,42 @@
+<div id="telemetry-panel">
+  <h3>ISS Live Telemetry</h3>
+  <p>Status: <span id="connection-status">Disconnected</span></p>
+  <div id="data-stream">
+    <p>Velocity: <span id="velocity">---</span> m/s</p>
+    <p>Altitude: <span id="altitude">---</span> km</p>
+  </div>
+</div>
+
+<script>
+  import { LightstreamerClient, Subscription } from 'lightstreamer-client-web';
+
+  // 1. Initialize Client (NASA's Public Endpoint)
+  const lsClient = new LightstreamerClient("https://push.lightstreamer.com", "ISSLIVE");
+
+  // 2. Define the Telemetry Points (Identifiers)
+  // These specific IDs are used by NASA's Lightstreamer Adapter
+  const tankItem = ["NODE3000005"]; // Example IDs for Velocity/Altitude
+  const fields = ["Value", "TimeStamp"];
+
+  // 3. Create a Subscription
+  const tankSub = new Subscription("MERGE", tankItem, fields);
+
+  // 4. Handle Incoming Data
+  tankSub.addListener({
+    onItemUpdate: (update) => {
+      const level = update.getValue("Value");
+      const timestamp = update.getValue("TimeStamp");
+
+      const fillElement = document.getElementById('urine-level');
+        if (!fillElement) return;
+
+      fillElement.innerText = `${level} %`;
+
+      if (parseFloat(level) > 90) {
+        fillElement.style.color ='red';
+      }
+    }
+  });
+
+  lsClient.subscribe(tankSub);
+</script>
