@@ -1,11 +1,18 @@
 ---
 /*
   ── ISS URINE PROCESSING ASSEMBLY (UPA) TELEMETRY DASHBOARD ──
-  Live data streams directly from NASA's Lightstreamer feed (push.lightstreamer.com / ISSLIVE).
-  Configuration and supplementary stats are served by the PHP API.
-  Tank cards are rendered dynamically from the API config — add new telemetry IDs
-  in api.php and they'll appear here automatically.
+  Now powered by Astro Islands — each interactive section is an independently
+  hydrated Preact component.  Static HTML ships as zero-JS; islands hydrate
+  with different strategies (client:load, client:idle, client:visible).
+  Shared state across islands is managed by nanostores.
 */
+import HeaderBar      from '../components/HeaderBar';
+import TelemetryPanel from '../components/TelemetryPanel';
+import EventLog       from '../components/EventLog';
+import StatsPanel     from '../components/StatsPanel';
+import IssMap         from '../components/IssMap';
+import CrewPanel      from '../components/CrewPanel';
+import NewsPanel      from '../components/NewsPanel';
 ---
 
 <html lang="en">
@@ -25,9 +32,29 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" is:inline></script>
 
-    <style>
+    <style is:global>
       /* ───────── RESET & BASE ───────── */
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      /* ───────── ASTRO ISLAND WRAPPERS ─────────
+         Each client: island gets a <astro-island> wrapper.
+         Make them transparent to grid/flex layouts. */
+      astro-island {
+        display: contents;
+      }
+      /* In grid contexts where we need the island to occupy a cell, use block */
+      .panels-row > astro-island,
+      .intel-grid > astro-island {
+        display: block;
+      }
+      .intel-sidebar > astro-island {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+      }
+      .intel-sidebar > astro-island > .sidebar-panel {
+        flex: 1;
+      }
 
       :root {
         --c-bg:        #121926;
@@ -591,90 +618,22 @@
   </head>
 
   <body>
-    <!-- ═══════ TOP BAR ═══════ -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <div>
-          <div class="mission-badge">MCC‑H  ·  ISS OPS</div>
-          <div class="mission-sub">Urine Processing Assembly — Environmental Control &amp; Life Support</div>
-        </div>
-      </div>
-      <div class="topbar-right">
-        <span><span class="status-dot danger" id="conn-dot"></span> <span id="conn-label">CONNECTING</span></span>
-        <span>|</span>
-        <span id="utc-clock">UTC 00:00:00</span>
-        <span>|</span>
-        <span>SIGNAL: <span id="signal-status" style="color:#64748b;">ACQUIRING</span></span>
-      </div>
-    </header>
-
-    <!-- ═══════ SUB BAR ═══════ -->
-    <div class="subbar">
-      <span>SYS: ECLSS &gt; WRS &gt; UPA</span>
-      <span>FEED: <span id="feed-source">——</span></span>
-      <span>GROUND ELAPSED TIME: <span id="get-clock">000/00:00:00</span></span>
-    </div>
+    <!-- ═══════ Island: HeaderBar (clock, connection, signal) — hydrates immediately ═══════ -->
+    <HeaderBar client:load />
 
     <!-- ═══════ DASHBOARD ═══════ -->
     <main class="dashboard">
 
-      <!-- ── THE ISLAND — tank cards are injected here by JS from API config ── -->
-      <section class="island">
-        <div class="island-header">
-          <div>
-            <div class="island-title">UPA TANK TELEMETRY</div>
-            <div class="island-subtitle">Real‑time fluid levels · International Space Station · Lightstreamer ISSLIVE</div>
-          </div>
-          <div class="island-badge nominal" id="system-badge">STANDBY</div>
-        </div>
-
-        <div class="tank-grid" id="tank-grid">
-          <!-- Cards are built dynamically from the PHP config -->
-          <div class="tank-card" style="opacity:.5; display:flex; align-items:center; justify-content:center; min-height:120px;">
-            <span style="color:var(--c-dim); font-size:.72rem;">Loading config from API…</span>
-          </div>
-        </div>
-      </section>
+      <!-- Island: TelemetryPanel — hydrates immediately for live Lightstreamer data -->
+      <TelemetryPanel client:load />
 
       <!-- ── BOTTOM PANELS ── -->
       <div class="panels-row">
+        <!-- Island: EventLog — hydrates immediately (shows live events from all islands via nanostores) -->
+        <EventLog client:load />
 
-        <!-- Event Log -->
-        <div class="panel">
-          <div class="section-title">Event Log</div>
-          <ul class="log-list" id="event-log">
-            <li>
-              <span class="log-time">--:--:--</span>
-              <span class="log-tag info">SYS</span>
-              <span>Awaiting telemetry stream…</span>
-            </li>
-          </ul>
-        </div>
-
-        <!-- Quick Stats -->
-        <div class="panel">
-          <div class="section-title">System Summary</div>
-          <div class="stat-row">
-            <span class="stat-label">Total Processed (L)</span>
-            <span class="stat-value" id="stat-total">——</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Distillation Cycles</span>
-            <span class="stat-value" id="stat-cycles">——</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Recovery Rate</span>
-            <span class="stat-value" id="stat-recovery">——</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Crew Complement</span>
-            <span class="stat-value" id="stat-crew">——</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Next Purge Window</span>
-            <span class="stat-value" id="stat-purge">——</span>
-          </div>
-        </div>
+        <!-- Island: StatsPanel — hydrates immediately -->
+        <StatsPanel client:load />
       </div>
 
       <!-- ═══════ MISSION INTELLIGENCE — map / crew / news ═══════ -->
@@ -692,526 +651,20 @@
         </div>
 
         <div class="intel-grid">
-          <!-- ── ISS POSITION MAP ── -->
-          <div class="map-panel">
-            <div class="panel-header">
-              <span class="panel-title">ISS GROUND TRACK</span>
-              <span class="panel-meta" id="map-source">cURL → Open Notify API · updates every 30 s</span>
-            </div>
-            <div id="iss-map"></div>
-            <div class="map-readouts">
-              <span>LAT <strong id="iss-lat">——</strong>°</span>
-              <span>LNG <strong id="iss-lng">——</strong>°</span>
-              <span>ALT <strong id="iss-alt">——</strong> km</span>
-              <span>VEL <strong id="iss-vel">——</strong> km/h</span>
-              <span>UPDATED <strong id="iss-ts">——</strong></span>
-            </div>
-          </div>
+          <!-- Island: IssMap — hydrates only when scrolled into view (client:visible) -->
+          <IssMap client:visible />
 
           <!-- ── SIDEBAR: crew + news ── -->
           <div class="intel-sidebar">
+            <!-- Island: CrewPanel — hydrates when browser is idle (client:idle) -->
+            <CrewPanel client:idle />
 
-            <!-- Crew Manifest -->
-            <div class="sidebar-panel">
-              <div class="panel-header">
-                <span class="panel-title">CREW MANIFEST</span>
-                <span class="panel-meta">Guzzle → Open Notify API</span>
-              </div>
-              <div class="crew-summary">
-                <strong id="crew-iss-count">—</strong> aboard ISS
-                <span class="crew-total">(<strong id="crew-space-count">—</strong> humans in space)</span>
-              </div>
-              <ul id="crew-list" class="crew-list">
-                <li class="placeholder">Loading crew data…</li>
-              </ul>
-            </div>
-
-            <!-- NASA News -->
-            <div class="sidebar-panel">
-              <div class="panel-header">
-                <span class="panel-title">NASA UPDATES</span>
-                <span class="panel-meta">Crawler → NASA Blog RSS</span>
-              </div>
-              <ul id="news-list" class="news-list">
-                <li class="placeholder">Crawling NASA feed…</li>
-              </ul>
-            </div>
-
+            <!-- Island: NewsPanel — hydrates when browser is idle (client:idle) -->
+            <NewsPanel client:idle />
           </div>
         </div>
       </section>
 
     </main>
-
-    <!-- ═══════ CLIENT‑SIDE: LIGHTSTREAMER + PHP API ═══════ -->
-    <script>
-      // @ts-nocheck
-      import { LightstreamerClient, Subscription } from 'lightstreamer-client-web';
-
-      // ── LIGHTSTREAMER CONFIG (embedded — no PHP dependency) ──────
-      //    To add more telemetry items, add entries to this object.
-      //    Key = NASA Lightstreamer item ID, value = card metadata.
-      const LS_CONFIG = {
-        server:  "https://push.lightstreamer.com",
-        adapter: "ISSLIVE",
-        items: {
-          "NODE3000005": { id: "wsta", label: "WSTA", fullName: "Waste Storage Tank Assembly" },
-          // Uncomment / add more when you find their IDs:
-          // "NODE3000002": { id: "edv",  label: "EDV‑U",    fullName: "External Distillation Void" },
-          // "NODE3000003": { id: "rfta", label: "RFTA",      fullName: "Recycle Filter Tank Assembly" },
-        },
-        signal_item: "TIME_000001",
-        fields:        ["Value", "Status", "TimeStamp"],
-        signal_fields: ["Status.Class", "Status", "TimeStamp"],
-      };
-
-      // ── PHP API BASE — adjust this to your PHP server ────────────
-      //    Dev: PHP runs on localhost:8000 (via php -S localhost:8000)
-      //    Prod: set to "" for same‑origin when everything is on one server
-      const PHP_BASE = "http://localhost:8000";
-      const API_URL  = `${PHP_BASE}/api/api.php`;
-
-      // ── DOM HELPERS ──────────────────────────────────────────────
-      const $ = (id) => document.getElementById(id);
-
-      function utcStamp() {
-        return new Date().toISOString().slice(11, 19);
-      }
-
-      function addLogEntry(msg, tag = "info") {
-        const list = $("event-log");
-        if (!list) return;
-        const li = document.createElement("li");
-        li.innerHTML = `<span class="log-time">${utcStamp()}</span>`
-          + `<span class="log-tag ${tag}">${tag.toUpperCase()}</span>`
-          + `<span>${msg}</span>`;
-        list.prepend(li);
-        while (list.children.length > 80) list.removeChild(list.lastChild);
-      }
-
-      // ── CONNECTION STATUS ────────────────────────────────────────
-      function setConnection(state) {
-        const dot   = $("conn-dot");
-        const label = $("conn-label");
-        if (!dot || !label) return;
-        dot.className   = "status-dot " + (state === "ok" ? "" : state === "warn" ? "warn" : "danger");
-        label.textContent = state === "ok" ? "LIVE" : state === "warn" ? "RECONNECTING" : "OFFLINE";
-      }
-
-      function setSignal(hasSignal) {
-        const el = $("signal-status");
-        if (!el) return;
-        el.textContent = hasSignal ? "LOCKED" : "NO SIGNAL";
-        el.style.color = hasSignal ? "var(--c-ok)" : "var(--c-danger)";
-      }
-
-      // ── GAUGE HELPERS ────────────────────────────────────────────
-      function classify(pct) {
-        if (pct >= 90) return "danger";
-        if (pct >= 75) return "warn";
-        return "";
-      }
-
-      function statusLabel(pct) {
-        if (pct >= 90) return { text: "CRITICAL", cls: "danger" };
-        if (pct >= 75) return { text: "CAUTION",  cls: "warn"   };
-        return { text: "NOMINAL", cls: "" };
-      }
-
-      function updateSystemBadge() {
-        const badge = $("system-badge");
-        if (!badge) return;
-        const fills = document.querySelectorAll(".gauge-fill");
-        let worst = "";
-        fills.forEach((f) => {
-          if (f.classList.contains("danger")) worst = "danger";
-          else if (f.classList.contains("warn") && worst !== "danger") worst = "warn";
-        });
-        if (worst === "danger") {
-          badge.textContent = "ALERT";   badge.className = "island-badge alert";
-        } else if (worst === "warn") {
-          badge.textContent = "CAUTION"; badge.className = "island-badge caution";
-        } else {
-          badge.textContent = "NOMINAL"; badge.className = "island-badge nominal";
-        }
-      }
-
-      // ── BUILD TANK CARDS FROM PHP CONFIG ─────────────────────────
-      function buildCards(items) {
-        const grid = $("tank-grid");
-        if (!grid) return;
-        grid.innerHTML = "";
-
-        for (const [lsItem, meta] of Object.entries(items)) {
-          const card = document.createElement("div");
-          card.className = "tank-card";
-          card.id = `card-${meta.id}`;
-          card.innerHTML = `
-            <div class="tank-label">${meta.label}</div>
-            <div class="tank-fullname">${meta.fullName}</div>
-            <div class="tank-ls-id">TELEM ID: ${lsItem}</div>
-            <div class="gauge-track"><div class="gauge-fill" id="fill-${meta.id}"></div></div>
-            <div class="tank-readout">
-              <div class="tank-value"><span id="val-${meta.id}">——</span><span class="unit">%</span></div>
-              <div class="tank-status" id="status-${meta.id}">STANDBY</div>
-            </div>
-            <div class="tank-ts" id="ts-${meta.id}"></div>
-          `;
-          grid.appendChild(card);
-        }
-      }
-
-      // ── APPLY STATS FROM PHP ─────────────────────────────────────
-      function applyStats(stats) {
-        if (!stats) return;
-        const map = {
-          total: "stat-total", cycles: "stat-cycles", recovery: "stat-recovery",
-          crew: "stat-crew", purge: "stat-purge",
-        };
-        for (const [key, elId] of Object.entries(map)) {
-          const el = $(elId);
-          if (el && stats[key] != null) el.textContent = stats[key];
-        }
-      }
-
-      // ── UTC CLOCK ────────────────────────────────────────────────
-      function tickClock() {
-        const now   = new Date();
-        const utcEl = $("utc-clock");
-        if (utcEl) utcEl.textContent = `UTC ${now.toISOString().slice(11, 19)}`;
-
-        // Ground elapsed time (days since ISS Expedition 1: 2000‑11‑02)
-        const epoch = new Date("2000-11-02T00:00:00Z");
-        const diff  = now.getTime() - epoch.getTime();
-        const days  = Math.floor(diff / 86400000);
-        const hh    = String(now.getUTCHours()).padStart(2, "0");
-        const mm    = String(now.getUTCMinutes()).padStart(2, "0");
-        const ss    = String(now.getUTCSeconds()).padStart(2, "0");
-        const getEl = $("get-clock");
-        if (getEl) getEl.textContent = `${days}/${hh}:${mm}:${ss}`;
-      }
-
-      // ── CONNECT TO LIGHTSTREAMER ─────────────────────────────────
-      function startLightstreamer(cfg) {
-        const lsClient = new LightstreamerClient(cfg.server, cfg.adapter);
-
-        // ── Connection status listener ──
-        lsClient.addListener({
-          onStatusChange: (newStatus) => {
-            addLogEntry(`LS status → ${newStatus}`, "info");
-            if (newStatus.startsWith("CONNECTED")) {
-              setConnection("ok");
-            } else if (newStatus.startsWith("STALLED") || newStatus.startsWith("DISCONNECTED:WILL-RETRY")) {
-              setConnection("warn");
-            } else if (newStatus.startsWith("DISCONNECTED")) {
-              setConnection("danger");
-            }
-          },
-        });
-
-        // ── Build item→cardId lookup ──
-        const itemNames = Object.keys(cfg.items);
-        const itemMeta  = {};        // lsItemName → { id, label, ... }
-        for (const [lsItem, meta] of Object.entries(cfg.items)) {
-          itemMeta[lsItem] = meta;
-        }
-
-        // ── Tank data subscription (MERGE mode, one sub for all items) ──
-        if (itemNames.length > 0) {
-          const tankSub = new Subscription("MERGE", itemNames, cfg.fields || ["Value", "Status", "TimeStamp"]);
-          tankSub.setRequestedSnapshot("yes");
-
-          tankSub.addListener({
-            onItemUpdate: (update) => {
-              const lsItem = update.getItemName();
-              const meta   = itemMeta[lsItem];
-              if (!meta) return;
-
-              const rawValue = update.getValue("Value");
-              const pct      = parseFloat(rawValue) || 0;
-              const cls      = classify(pct);
-              const st       = statusLabel(pct);
-
-              // Value
-              const valEl = $(`val-${meta.id}`);
-              if (valEl) valEl.textContent = pct.toFixed(1);
-
-              // Gauge bar
-              const fillEl = $(`fill-${meta.id}`);
-              if (fillEl) {
-                fillEl.style.width   = `${Math.min(pct, 100)}%`;
-                fillEl.className     = "gauge-fill " + cls;
-              }
-
-              // Status badge
-              const statEl = $(`status-${meta.id}`);
-              if (statEl) {
-                statEl.textContent = st.text;
-                statEl.className   = "tank-status " + st.cls;
-              }
-
-              // Timestamp
-              const tsRaw = update.getValue("TimeStamp");
-              const tsEl  = $(`ts-${meta.id}`);
-              if (tsEl && tsRaw) {
-                const d = new Date(parseFloat(tsRaw) * 1000);
-                tsEl.textContent = isNaN(d.getTime()) ? tsRaw : `Last update: ${d.toISOString().slice(11, 19)} UTC`;
-              }
-
-              // Log significant events
-              if (pct >= 90) {
-                addLogEntry(`${meta.label} at ${pct.toFixed(1)}% — CRITICAL`, "alert");
-              } else if (pct >= 75) {
-                addLogEntry(`${meta.label} at ${pct.toFixed(1)}% — CAUTION`, "warning");
-              }
-
-              updateSystemBadge();
-            },
-          });
-
-          lsClient.subscribe(tankSub);
-          addLogEntry(`Subscribed to ${itemNames.length} telemetry item(s): ${itemNames.join(", ")}`, "info");
-        }
-
-        // ── Signal‑quality subscription (TIME_000001) ──
-        if (cfg.signal_item) {
-          const sigSub = new Subscription("MERGE", [cfg.signal_item], cfg.signal_fields || ["Status.Class", "Status"]);
-          sigSub.addListener({
-            onItemUpdate: (update) => {
-              const statusClass = update.getValue("Status.Class");
-              const hasSignal   = statusClass === "24";
-              setSignal(hasSignal);
-            },
-          });
-          lsClient.subscribe(sigSub);
-        }
-
-        // ── Connect! ──
-        lsClient.connect();
-        addLogEntry("Lightstreamer client connecting…", "info");
-      }
-
-      // ══════════════════════════════════════════════════════════════
-      //   BOOT SEQUENCE
-      // ══════════════════════════════════════════════════════════════
-      tickClock();
-      setInterval(tickClock, 1000);
-
-      // 1. Build cards + start Lightstreamer immediately (no PHP needed)
-      const feedEl = $("feed-source");
-      if (feedEl) feedEl.textContent = `${LS_CONFIG.server} / ${LS_CONFIG.adapter}`;
-
-      buildCards(LS_CONFIG.items);
-      startLightstreamer(LS_CONFIG);
-      addLogEntry("Dashboard initialised — live telemetry stream active", "info");
-
-      // 2. Apply built-in defaults immediately so stats are never empty
-      const DEFAULT_STATS = {
-        total:    "2,847 L",
-        cycles:   "1,206",
-        recovery: "~93.5%",
-        crew:     "7",
-        purge:    "2026-02-18 14:00 UTC",
-      };
-      applyStats(DEFAULT_STATS);
-
-      // 3. Optionally fetch fresh stats from PHP (overrides defaults)
-      fetch(API_URL)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then((data) => {
-          if (data.stats) {
-            applyStats(data.stats);
-            addLogEntry("PHP stats loaded — values updated", "info");
-          }
-        })
-        .catch(() => {
-          // defaults already applied, no action needed
-        });
-
-      // ══════════════════════════════════════════════════════════════
-      //   MISSION INTELLIGENCE — Map, Crew, News
-      //   These poll the PHP API endpoints which use cURL, Guzzle,
-      //   and a web crawler respectively.
-      // ══════════════════════════════════════════════════════════════
-
-      // ── ISS Position Map (Leaflet + cURL endpoint) ───────────────
-      const issIcon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:20px; height:20px; border-radius:50%;
-          background:var(--c-accent, #6b9fcc);
-          border: 2px solid #e2e8f0;
-          box-shadow: 0 0 12px rgba(107,159,204,.6), 0 0 24px rgba(107,159,204,.3);
-        "></div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
-
-      const map = L.map('iss-map', {
-        center: [0, 0],
-        zoom: 2,
-        zoomControl: true,
-        attributionControl: false,
-      });
-
-      // Dark tiles — matches the dashboard theme
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-        subdomains: 'abcd',
-      }).addTo(map);
-
-      // Add subtle attribution
-      L.control.attribution({ prefix: false }).addTo(map);
-
-      const issMarker  = L.marker([0, 0], { icon: issIcon }).addTo(map);
-      const trailCoords = [];
-      const trail = L.polyline(trailCoords, {
-        color: 'rgba(107,159,204,.45)',
-        weight: 2,
-        dashArray: '4 6',
-      }).addTo(map);
-
-      let firstPosition = true;
-
-      async function fetchISSPosition() {
-        try {
-          const res = await fetch(`${PHP_BASE}/api/position.php`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-
-          if (!data.success) throw new Error(data.error || 'Position unavailable');
-
-          const lat = data.latitude;
-          const lng = data.longitude;
-          const alt = data.altitude;
-          const vel = data.velocity;
-
-          // Update readouts
-          $("iss-lat").textContent = lat.toFixed(4);
-          $("iss-lng").textContent = lng.toFixed(4);
-          $("iss-alt").textContent = Math.round(alt).toLocaleString();
-          $("iss-vel").textContent = Math.round(vel).toLocaleString();
-          $("iss-ts").textContent  = utcStamp();
-
-          // Update marker
-          issMarker.setLatLng([lat, lng]);
-
-          // Build trail (handle date-line wrapping by starting new segment)
-          if (trailCoords.length > 0) {
-            const prev = trailCoords[trailCoords.length - 1];
-            if (Math.abs(lng - prev[1]) > 180) {
-              // ISS crossed the date line — start a new polyline segment
-              trailCoords.length = 0;
-            }
-          }
-          trailCoords.push([lat, lng]);
-          if (trailCoords.length > 120) trailCoords.shift();
-          trail.setLatLngs(trailCoords);
-
-          // Centre map on first fetch
-          if (firstPosition) {
-            map.setView([lat, lng], 3);
-            firstPosition = false;
-            addLogEntry(`ISS position acquired via cURL — ${lat.toFixed(2)}°, ${lng.toFixed(2)}°`, "info");
-          }
-
-          // Source info
-          const srcEl = $("map-source");
-          if (srcEl && data.source) {
-            srcEl.textContent = `cURL → ${data.source} · updates every 30 s`;
-          }
-        } catch (e) {
-          addLogEntry(`ISS position fetch failed: ${e.message}`, "warning");
-        }
-      }
-
-      // Poll every 30 seconds
-      fetchISSPosition();
-      setInterval(fetchISSPosition, 30000);
-
-      // ── Crew Manifest (Guzzle endpoint) ──────────────────────────
-      async function fetchCrew() {
-        try {
-          const res = await fetch(`${PHP_BASE}/api/crew.php`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-
-          if (!data.success) throw new Error(data.error || 'Crew data unavailable');
-
-          // Update counts
-          $("crew-iss-count").textContent   = data.iss_crew_count ?? '—';
-          $("crew-space-count").textContent  = data.total_in_space ?? '—';
-
-          // Build crew list
-          const list = $("crew-list");
-          if (list && data.crew) {
-            list.innerHTML = '';
-            data.crew.forEach((person) => {
-              const li = document.createElement('li');
-              li.innerHTML = `
-                <span class="crew-dot"></span>
-                <span class="crew-name">${person.name}</span>
-                <span class="crew-craft">${person.craft}</span>
-              `;
-              list.appendChild(li);
-            });
-            if (data.crew.length === 0) {
-              list.innerHTML = '<li class="placeholder">No ISS crew data available</li>';
-            }
-          }
-
-          addLogEntry(`Crew manifest loaded via Guzzle — ${data.iss_crew_count} aboard ISS`, "info");
-        } catch (e) {
-          const list = $("crew-list");
-          if (list) list.innerHTML = '<li class="placeholder">Crew data unavailable — is PHP running?</li>';
-          addLogEntry(`Crew fetch failed: ${e.message}`, "warning");
-        }
-      }
-
-      // Load once, refresh every 5 minutes
-      fetchCrew();
-      setInterval(fetchCrew, 300000);
-
-      // ── NASA News (Crawler endpoint) ─────────────────────────────
-      async function fetchNews() {
-        try {
-          const res = await fetch(`${PHP_BASE}/api/news.php`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-
-          if (!data.success) throw new Error(data.error || 'News unavailable');
-
-          const list = $("news-list");
-          if (list && data.articles) {
-            list.innerHTML = '';
-            data.articles.forEach((article) => {
-              const li = document.createElement('li');
-              li.innerHTML = `
-                <a class="news-title" href="${article.link}" target="_blank" rel="noopener">${article.title}</a>
-                <div class="news-date">${article.date}</div>
-                ${article.excerpt ? `<div class="news-excerpt">${article.excerpt}</div>` : ''}
-              `;
-              list.appendChild(li);
-            });
-            if (data.articles.length === 0) {
-              list.innerHTML = '<li class="placeholder">No articles found</li>';
-            }
-          }
-
-          addLogEntry(`NASA news crawled — ${data.count} articles from RSS feed`, "info");
-        } catch (e) {
-          const list = $("news-list");
-          if (list) list.innerHTML = '<li class="placeholder">News feed unavailable — is PHP running?</li>';
-          addLogEntry(`News crawl failed: ${e.message}`, "warning");
-        }
-      }
-
-      // Load once, refresh every 5 minutes
-      fetchNews();
-      setInterval(fetchNews, 300000);
-    </script>
   </body>
 </html>
